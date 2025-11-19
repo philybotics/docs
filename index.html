@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>xsukax Markdown WYSIWYG Editor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/turndown/7.1.2/turndown.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif; }
+        .toolbar-btn { transition: all 0.2s ease; border: 1px solid transparent; }
+        .toolbar-btn:hover { background-color: #f3f4f6; border-color: #d1d5db; }
+        .toolbar-btn.active { background-color: #dbeafe; border-color: #3b82f6; }
+        .editor-content { min-height: 500px; max-height: calc(100vh - 250px); overflow-y: auto; font-size: 16px; line-height: 1.6; }
+        .editor-content:focus { outline: none; }
+        .editor-content h1 { font-size: 2em; font-weight: 600; margin: 24px 0 16px 0; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb; }
+        .editor-content h2 { font-size: 1.5em; font-weight: 600; margin: 24px 0 16px 0; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb; }
+        .editor-content h3 { font-size: 1.25em; font-weight: 600; margin: 24px 0 16px 0; }
+        .editor-content h4 { font-size: 1em; font-weight: 600; margin: 24px 0 16px 0; }
+        .editor-content h5 { font-size: 0.875em; font-weight: 600; margin: 24px 0 16px 0; }
+        .editor-content h6 { font-size: 0.85em; font-weight: 600; margin: 24px 0 16px 0; color: #6b7280; }
+        .editor-content p { margin-bottom: 16px; }
+        .editor-content ul { margin: 16px 0; padding-left: 2em; list-style-type: disc; }
+        .editor-content ol { margin: 16px 0; padding-left: 2em; list-style-type: decimal; }
+        .editor-content ul ul { list-style-type: circle; }
+        .editor-content ul ul ul { list-style-type: square; }
+        .editor-content li { margin-bottom: 4px; display: list-item; }
+        .editor-content blockquote { border-left: 4px solid #d1d5db; padding-left: 16px; margin: 16px 0; color: #6b7280; font-style: italic; }
+        .editor-content code { background-color: #f3f4f6; padding: 2px 6px; border-radius: 3px; font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; font-size: 0.9em; color: #e11d48; }
+        .editor-content pre { background-color: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; margin: 16px 0; border: 1px solid #e5e7eb; }
+        .editor-content pre code { background-color: transparent; padding: 0; color: #1f2937; }
+        .editor-content table { border-collapse: collapse; margin: 16px 0; width: 100%; border: 1px solid #d1d5db; }
+        .editor-content table th, .editor-content table td { border: 1px solid #d1d5db; padding: 8px 12px; text-align: left; }
+        .editor-content table th { background-color: #f9fafb; font-weight: 600; }
+        .editor-content a { color: #0969da; text-decoration: none; }
+        .editor-content a:hover { text-decoration: underline; }
+        .editor-content img { max-width: 100%; height: auto; margin: 16px 0; border-radius: 6px; }
+        .editor-content hr { border: 0; border-top: 1px solid #e5e7eb; margin: 24px 0; }
+        .editor-content del { text-decoration: line-through; color: #6b7280; }
+        .editor-content mark { background-color: #fef08a; padding: 2px 4px; border-radius: 2px; }
+        .editor-content sub { vertical-align: sub; font-size: 0.8em; }
+        .editor-content sup { vertical-align: super; font-size: 0.8em; }
+        .editor-content .task-list { list-style: none; padding-left: 0; }
+        .editor-content .task-list li { position: relative; padding-left: 28px; }
+        .editor-content .task-list input[type="checkbox"] { position: absolute; left: 0; top: 4px; }
+        .editor-content dl { margin: 16px 0; }
+        .editor-content dt { font-weight: 600; margin-top: 12px; }
+        .editor-content dd { margin-left: 24px; margin-bottom: 8px; }
+        .modal-overlay { display: none; position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.5); z-index: 1000; align-items: center; justify-content: center; }
+        .modal-overlay.active { display: flex; }
+        .modal-content { background: white; border-radius: 8px; padding: 24px; max-width: 600px; width: 90%; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2); max-height: 80vh; overflow-y: auto; }
+        .notification { position: fixed; top: 20px; right: 20px; background: white; border-left: 4px solid #10b981; padding: 16px 20px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); z-index: 2000; min-width: 250px; animation: slideIn 0.3s ease; }
+        .notification.error { border-left-color: #ef4444; }
+        .notification.warning { border-left-color: #f59e0b; }
+        @keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(400px); opacity: 0; } }
+        .notification.hiding { animation: slideOut 0.3s ease; }
+        .markdown-view { display: none; }
+        .markdown-view.active { display: block; }
+        .editor-view.hidden { display: none; }
+        textarea.markdown-source { font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; font-size: 14px; line-height: 1.6; resize: none; }
+        @media (max-width: 768px) { .toolbar-group { flex-wrap: wrap; } }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto px-4 py-6 max-w-6xl">
+        <header class="mb-6">
+            <div class="flex items-center justify-between mb-4 flex-wrap gap-4">
+                <h1 class="text-3xl font-bold text-gray-900">xsukax Markdown WYSIWYG Editor</h1>
+                <div class="flex gap-2 flex-wrap">
+                    <button onclick="editor.newDocument()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">New</button>
+                    <button onclick="editor.showImportModal()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">Import</button>
+                    <button onclick="editor.toggleMarkdownView()" id="markdownBtn" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">View Markdown</button>
+                    <button onclick="editor.exportMarkdown()" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700">Export</button>
+                </div>
+            </div>
+        </header>
+
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div id="toolbar" class="flex flex-wrap gap-1 p-3 border-b border-gray-200">
+                <div class="toolbar-group flex gap-1">
+                    <button onclick="editor.format('bold')" title="Bold (Ctrl+B)" class="toolbar-btn p-2 rounded"><strong>B</strong></button>
+                    <button onclick="editor.format('italic')" title="Italic (Ctrl+I)" class="toolbar-btn p-2 rounded"><em>I</em></button>
+                    <button onclick="editor.format('underline')" title="Underline (Ctrl+U)" class="toolbar-btn p-2 rounded"><u>U</u></button>
+                    <button onclick="editor.format('strikethrough')" title="Strikethrough" class="toolbar-btn p-2 rounded"><del>S</del></button>
+                </div>
+                <span class="w-px bg-gray-300 mx-1"></span>
+                <div class="toolbar-group flex gap-1">
+                    <button onclick="editor.formatHeading(1)" title="Heading 1" class="toolbar-btn px-2 py-1 rounded text-sm font-semibold">H1</button>
+                    <button onclick="editor.formatHeading(2)" title="Heading 2" class="toolbar-btn px-2 py-1 rounded text-sm font-semibold">H2</button>
+                    <button onclick="editor.formatHeading(3)" title="Heading 3" class="toolbar-btn px-2 py-1 rounded text-sm font-semibold">H3</button>
+                    <button onclick="editor.formatHeading(4)" title="Heading 4" class="toolbar-btn px-2 py-1 rounded text-sm font-semibold">H4</button>
+                    <button onclick="editor.formatHeading(5)" title="Heading 5" class="toolbar-btn px-2 py-1 rounded text-sm font-semibold">H5</button>
+                    <button onclick="editor.formatHeading(6)" title="Heading 6" class="toolbar-btn px-2 py-1 rounded text-sm font-semibold">H6</button>
+                </div>
+                <span class="w-px bg-gray-300 mx-1"></span>
+                <div class="toolbar-group flex gap-1">
+                    <button onclick="editor.insertLink()" title="Insert Link" class="toolbar-btn px-2 py-1 rounded text-sm">🔗</button>
+                    <button onclick="editor.insertImage()" title="Insert Image" class="toolbar-btn px-2 py-1 rounded text-sm">🖼️</button>
+                    <button onclick="editor.format('code')" title="Inline Code" class="toolbar-btn px-2 py-1 rounded text-sm font-mono">&lt;/&gt;</button>
+                    <button onclick="editor.insertCodeBlock()" title="Code Block" class="toolbar-btn px-2 py-1 rounded text-sm">{ }</button>
+                </div>
+                <span class="w-px bg-gray-300 mx-1"></span>
+                <div class="toolbar-group flex gap-1">
+                    <button onclick="editor.formatList('ul')" title="Bullet List" class="toolbar-btn px-2 py-1 rounded text-sm">• List</button>
+                    <button onclick="editor.formatList('ol')" title="Numbered List" class="toolbar-btn px-2 py-1 rounded text-sm">1. List</button>
+                    <button onclick="editor.insertTaskList()" title="Task List" class="toolbar-btn px-2 py-1 rounded text-sm">☑ Task</button>
+                    <button onclick="editor.formatBlockquote()" title="Blockquote" class="toolbar-btn px-2 py-1 rounded text-sm">" "</button>
+                </div>
+                <span class="w-px bg-gray-300 mx-1"></span>
+                <div class="toolbar-group flex gap-1">
+                    <button onclick="editor.insertTable()" title="Insert Table" class="toolbar-btn px-2 py-1 rounded text-sm">⊞</button>
+                    <button onclick="editor.insertHorizontalRule()" title="Horizontal Rule" class="toolbar-btn px-2 py-1 rounded text-sm">—</button>
+                    <button onclick="editor.format('highlight')" title="Highlight" class="toolbar-btn px-2 py-1 rounded text-sm">⚡</button>
+                    <button onclick="editor.format('subscript')" title="Subscript" class="toolbar-btn px-2 py-1 rounded text-sm">X₂</button>
+                    <button onclick="editor.format('superscript')" title="Superscript" class="toolbar-btn px-2 py-1 rounded text-sm">X²</button>
+                </div>
+                <span class="w-px bg-gray-300 mx-1"></span>
+                <div class="toolbar-group flex gap-1">
+                    <button onclick="editor.insertDefinitionList()" title="Definition List" class="toolbar-btn px-2 py-1 rounded text-sm">DL</button>
+                    <button onclick="editor.insertFootnote()" title="Footnote" class="toolbar-btn px-2 py-1 rounded text-sm">[^]</button>
+                    <button onclick="editor.showCheatsheet()" title="Help" class="toolbar-btn px-2 py-1 rounded text-sm">?</button>
+                </div>
+            </div>
+
+            <div id="editorView" class="editor-view">
+                <div id="editorContent" class="editor-content p-6 text-gray-800" contenteditable="true" spellcheck="true"></div>
+            </div>
+
+            <div id="markdownView" class="markdown-view">
+                <textarea id="markdownSource" class="markdown-source w-full p-6 border-0 focus:outline-none text-gray-800" rows="20"></textarea>
+            </div>
+        </div>
+
+        <div class="mt-4 flex justify-between items-center text-sm text-gray-500 flex-wrap gap-4">
+            <div>
+                <span id="wordCount">Words: 0</span> | <span id="charCount">Characters: 0</span> | <span id="lineCount">Lines: 0</span>
+            </div>
+            <div class="text-xs">
+                Auto-saves every 30 seconds • Ctrl+S to save manually
+            </div>
+        </div>
+    </div>
+
+    <div id="modalOverlay" class="modal-overlay" onclick="editor.closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div id="modalHeader" class="text-xl font-semibold mb-4 text-gray-900"></div>
+            <div id="modalBody" class="mb-6 text-gray-700"></div>
+            <div id="modalFooter" class="flex justify-end gap-2"></div>
+        </div>
+    </div>
+
+    <script>
+        const editor = {
+            editorEl: null,
+            markdownEl: null,
+            turndownService: null,
+            isMarkdownView: false,
+            autoSaveInterval: null,
+
+            init() {
+                this.editorEl = document.getElementById('editorContent');
+                this.markdownEl = document.getElementById('markdownSource');
+                
+                marked.setOptions({
+                    breaks: true,
+                    gfm: true,
+                    headerIds: true,
+                    mangle: false
+                });
+
+                this.turndownService = new TurndownService({
+                    headingStyle: 'atx',
+                    codeBlockStyle: 'fenced',
+                    emDelimiter: '*',
+                    strongDelimiter: '**',
+                    linkStyle: 'inlined'
+                });
+
+                this.setupTurndownRules();
+                this.setupEventListeners();
+                this.loadFromStorage();
+                this.startAutoSave();
+                this.updateStats();
+            },
+
+            setupTurndownRules() {
+                this.turndownService.addRule('strikethrough', {
+                    filter: ['del', 's', 'strike'],
+                    replacement: (content) => '~~' + content + '~~'
+                });
+
+                this.turndownService.addRule('highlight', {
+                    filter: 'mark',
+                    replacement: (content) => '==' + content + '=='
+                });
+
+                this.turndownService.addRule('subscript', {
+                    filter: 'sub',
+                    replacement: (content) => '~' + content + '~'
+                });
+
+                this.turndownService.addRule('superscript', {
+                    filter: 'sup',
+                    replacement: (content) => '^' + content + '^'
+                });
+
+                this.turndownService.addRule('taskList', {
+                    filter: (node) => {
+                        return node.nodeName === 'LI' && node.parentNode.classList.contains('task-list');
+                    },
+                    replacement: (content, node) => {
+                        const checkbox = node.querySelector('input[type="checkbox"]');
+                        const checked = checkbox && checkbox.checked ? 'x' : ' ';
+                        return '- [' + checked + '] ' + content + '\n';
+                    }
+                });
+
+                this.turndownService.addRule('table', {
+                    filter: 'table',
+                    replacement: (content, node) => {
+                        const rows = [];
+                        const thead = node.querySelector('thead');
+                        const tbody = node.querySelector('tbody');
+                        
+                        if (thead) {
+                            const headerRow = thead.querySelector('tr');
+                            if (headerRow) {
+                                const headers = Array.from(headerRow.querySelectorAll('th, td'));
+                                const headerText = headers.map(h => h.textContent.trim()).join(' | ');
+                                rows.push('| ' + headerText + ' |');
+                                
+                                const separator = headers.map(() => '----------').join(' | ');
+                                rows.push('| ' + separator + ' |');
+                            }
+                        }
+                        
+                        if (tbody) {
+                            const bodyRows = Array.from(tbody.querySelectorAll('tr'));
+                            bodyRows.forEach(row => {
+                                const cells = Array.from(row.querySelectorAll('td'));
+                                const cellText = cells.map(c => c.textContent.trim()).join(' | ');
+                                rows.push('| ' + cellText + ' |');
+                            });
+                        }
+                        
+                        return '\n' + rows.join('\n') + '\n\n';
+                    }
+                });
+            },
+
+            setupEventListeners() {
+                this.editorEl.addEventListener('input', () => this.handleInput());
+                this.editorEl.addEventListener('keydown', (e) => this.handleKeyDown(e));
+                this.markdownEl.addEventListener('input', () => this.updateStats());
+                
+                document.addEventListener('selectionchange', () => this.updateToolbarState());
+
+                document.addEventListener('keydown', (e) => {
+                    if (e.ctrlKey || e.metaKey) {
+                        switch(e.key.toLowerCase()) {
+                            case 's':
+                                e.preventDefault();
+                                this.saveToStorage();
+                                this.showNotification('Document saved', 'success');
+                                break;
+                            case 'b':
+                                if (!this.isMarkdownView) {
+                                    e.preventDefault();
+                                    this.format('bold');
+                                }
+                                break;
+                            case 'i':
+                                if (!this.isMarkdownView) {
+                                    e.preventDefault();
+                                    this.format('italic');
+                                }
+                                break;
+                            case 'u':
+                                if (!this.isMarkdownView) {
+                                    e.preventDefault();
+                                    this.format('underline');
+                                }
+                                break;
+                        }
+                    }
+                });
+
+                this.editorEl.addEventListener('paste', (e) => {
+                    e.preventDefault();
+                    const text = e.clipboardData.getData('text/plain');
+                    document.execCommand('insertText', false, text);
+                });
+            },
+
+            handleInput() {
+                this.updateStats();
+            },
+
+            handleKeyDown(e) {
+                if (e.key === 'Tab') {
+                    e.preventDefault();
+                    document.execCommand('insertText', false, '    ');
+                }
+            },
+
+            updateToolbarState() {
+                if (this.isMarkdownView) return;
+
+                const commands = ['bold', 'italic', 'underline', 'strikeThrough'];
+                const btnMap = {
+                    'bold': 'bold',
+                    'italic': 'italic',
+                    'underline': 'underline',
+                    'strikeThrough': 'strikethrough'
+                };
+
+                commands.forEach(cmd => {
+                    const isActive = document.queryCommandState(cmd);
+                    const searchTerm = btnMap[cmd];
+                    const buttons = document.querySelectorAll('[onclick*="' + searchTerm + '"]');
+                    buttons.forEach(btn => {
+                        if (isActive) {
+                            btn.classList.add('active');
+                        } else {
+                            btn.classList.remove('active');
+                        }
+                    });
+                });
+            },
+
+            format(command) {
+                this.editorEl.focus();
+                
+                switch(command) {
+                    case 'bold':
+                        document.execCommand('bold', false, null);
+                        break;
+                    case 'italic':
+                        document.execCommand('italic', false, null);
+                        break;
+                    case 'underline':
+                        document.execCommand('underline', false, null);
+                        break;
+                    case 'strikethrough':
+                        document.execCommand('strikeThrough', false, null);
+                        break;
+                    case 'code':
+                        this.wrapSelection('code');
+                        break;
+                    case 'highlight':
+                        this.wrapSelection('mark');
+                        break;
+                    case 'subscript':
+                        this.wrapSelection('sub');
+                        break;
+                    case 'superscript':
+                        this.wrapSelection('sup');
+                        break;
+                }
+            },
+
+            wrapSelection(tag) {
+                const selection = window.getSelection();
+                if (selection.rangeCount === 0) return;
+
+                const range = selection.getRangeAt(0);
+                const selectedText = range.toString();
+                
+                if (!selectedText) {
+                    this.showNotification('Please select text first', 'warning');
+                    return;
+                }
+
+                const element = document.createElement(tag);
+                element.textContent = selectedText;
+                range.deleteContents();
+                range.insertNode(element);
+                
+                selection.removeAllRanges();
+                const newRange = document.createRange();
+                newRange.selectNodeContents(element);
+                selection.addRange(newRange);
+            },
+
+            formatHeading(level) {
+                this.editorEl.focus();
+                document.execCommand('formatBlock', false, 'h' + level);
+            },
+
+            formatList(type) {
+                this.editorEl.focus();
+                const command = type === 'ul' ? 'insertUnorderedList' : 'insertOrderedList';
+                document.execCommand(command, false, null);
+            },
+
+            formatBlockquote() {
+                this.editorEl.focus();
+                document.execCommand('formatBlock', false, 'blockquote');
+            },
+
+            insertLink() {
+                const selection = window.getSelection();
+                const selectedText = selection.toString() || 'link text';
+                const savedRange = selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null;
+                const savedScrollTop = this.editorEl.scrollTop;
+                
+                this.showModal(
+                    'Insert Link',
+                    '<input type="text" id="linkUrl" placeholder="https://example.com" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"><input type="text" id="linkText" value="' + selectedText + '" placeholder="Link text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">',
+                    [
+                        { text: 'Cancel', class: 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50', action: () => this.closeModal() },
+                        { text: 'Insert', class: 'bg-blue-600 text-white hover:bg-blue-700', action: () => {
+                            const url = document.getElementById('linkUrl').value;
+                            const text = document.getElementById('linkText').value;
+                            if (url) {
+                                this.closeModal();
+                                setTimeout(() => {
+                                    this.editorEl.focus({ preventScroll: true });
+                                    if (savedRange) {
+                                        const sel = window.getSelection();
+                                        sel.removeAllRanges();
+                                        sel.addRange(savedRange);
+                                    }
+                                    const link = document.createElement('a');
+                                    link.href = url;
+                                    link.textContent = text;
+                                    const range = window.getSelection().getRangeAt(0);
+                                    range.deleteContents();
+                                    range.insertNode(link);
+                                    range.setStartAfter(link);
+                                    range.setEndAfter(link);
+                                    const sel = window.getSelection();
+                                    sel.removeAllRanges();
+                                    sel.addRange(range);
+                                    this.editorEl.scrollTop = savedScrollTop;
+                                    link.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                }, 0);
+                            } else {
+                                this.showNotification('Please enter a URL', 'warning');
+                            }
+                        }}
+                    ]
+                );
+            },
+
+            insertImage() {
+                const selection = window.getSelection();
+                const savedRange = selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null;
+                const savedScrollTop = this.editorEl.scrollTop;
+                
+                this.showModal(
+                    'Insert Image',
+                    '<input type="text" id="imageUrl" placeholder="https://example.com/image.jpg" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"><input type="text" id="imageAlt" placeholder="Image description" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">',
+                    [
+                        { text: 'Cancel', class: 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50', action: () => this.closeModal() },
+                        { text: 'Insert', class: 'bg-blue-600 text-white hover:bg-blue-700', action: () => {
+                            const url = document.getElementById('imageUrl').value;
+                            const alt = document.getElementById('imageAlt').value || 'image';
+                            if (url) {
+                                this.closeModal();
+                                setTimeout(() => {
+                                    this.editorEl.focus({ preventScroll: true });
+                                    if (savedRange) {
+                                        const sel = window.getSelection();
+                                        sel.removeAllRanges();
+                                        sel.addRange(savedRange);
+                                    }
+                                    const img = document.createElement('img');
+                                    img.src = url;
+                                    img.alt = alt;
+                                    const range = window.getSelection().getRangeAt(0);
+                                    range.deleteContents();
+                                    range.insertNode(img);
+                                    range.setStartAfter(img);
+                                    range.setEndAfter(img);
+                                    const sel = window.getSelection();
+                                    sel.removeAllRanges();
+                                    sel.addRange(range);
+                                    this.editorEl.scrollTop = savedScrollTop;
+                                    img.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                }, 0);
+                            } else {
+                                this.showNotification('Please enter an image URL', 'warning');
+                            }
+                        }}
+                    ]
+                );
+            },
+
+            insertCodeBlock() {
+                this.editorEl.focus();
+                const pre = document.createElement('pre');
+                const code = document.createElement('code');
+                code.textContent = '// Your code here\n';
+                pre.appendChild(code);
+                const p = document.createElement('p');
+                p.innerHTML = '<br>';
+                
+                const selection = window.getSelection();
+                const range = selection.getRangeAt(0);
+                range.deleteContents();
+                range.insertNode(p);
+                range.insertNode(pre);
+                
+                range.setStart(code.firstChild, 0);
+                range.setEnd(code.firstChild, code.firstChild.length);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            },
+
+            insertTable() {
+                this.editorEl.focus();
+                const table = '<table><thead><tr><th>Header 1</th><th>Header 2</th><th>Header 3</th></tr></thead><tbody><tr><td>Cell 1</td><td>Cell 2</td><td>Cell 3</td></tr><tr><td>Cell 4</td><td>Cell 5</td><td>Cell 6</td></tr></tbody></table><p><br></p>';
+                document.execCommand('insertHTML', false, table);
+                
+                const selection = window.getSelection();
+                if (selection.rangeCount > 0) {
+                    const range = selection.getRangeAt(0);
+                    const tableEl = range.startContainer;
+                    if (tableEl) {
+                        const firstCell = this.editorEl.querySelector('table th');
+                        if (firstCell) {
+                            range.selectNodeContents(firstCell);
+                            selection.removeAllRanges();
+                            selection.addRange(range);
+                        }
+                    }
+                }
+            },
+
+            insertHorizontalRule() {
+                this.editorEl.focus();
+                const hr = document.createElement('hr');
+                const p = document.createElement('p');
+                p.innerHTML = '<br>';
+                
+                const selection = window.getSelection();
+                const range = selection.getRangeAt(0);
+                range.deleteContents();
+                range.insertNode(p);
+                range.insertNode(hr);
+                
+                range.setStartAfter(p);
+                range.setEndAfter(p);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            },
+
+            insertTaskList() {
+                this.editorEl.focus();
+                const taskList = '<ul class="task-list"><li><input type="checkbox"> Task 1</li><li><input type="checkbox"> Task 2</li><li><input type="checkbox" checked> Task 3 (completed)</li></ul><p><br></p>';
+                document.execCommand('insertHTML', false, taskList);
+                
+                const selection = window.getSelection();
+                if (selection.rangeCount > 0) {
+                    const range = selection.getRangeAt(0);
+                    const firstLi = this.editorEl.querySelector('.task-list li');
+                    if (firstLi) {
+                        const textNode = firstLi.childNodes[firstLi.childNodes.length - 1];
+                        if (textNode) {
+                            range.selectNodeContents(textNode);
+                            selection.removeAllRanges();
+                            selection.addRange(range);
+                        }
+                    }
+                }
+            },
+
+            insertDefinitionList() {
+                this.editorEl.focus();
+                const dl = '<dl><dt>Term 1</dt><dd>Definition 1</dd><dt>Term 2</dt><dd>Definition 2</dd></dl><p><br></p>';
+                document.execCommand('insertHTML', false, dl);
+                
+                const selection = window.getSelection();
+                if (selection.rangeCount > 0) {
+                    const range = selection.getRangeAt(0);
+                    const firstDt = this.editorEl.querySelector('dl dt');
+                    if (firstDt) {
+                        range.selectNodeContents(firstDt);
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                    }
+                }
+            },
+
+            insertFootnote() {
+                const selection = window.getSelection();
+                const selectedText = selection.toString() || 'text with footnote';
+                
+                this.editorEl.focus();
+                
+                const sup = document.createElement('sup');
+                sup.textContent = '[1]';
+                
+                const range = selection.getRangeAt(0);
+                if (selectedText) {
+                    const textNode = document.createTextNode(selectedText);
+                    range.deleteContents();
+                    range.insertNode(sup);
+                    range.insertNode(textNode);
+                } else {
+                    range.insertNode(sup);
+                }
+                
+                range.setStartAfter(sup);
+                range.setEndAfter(sup);
+                selection.removeAllRanges();
+                selection.addRange(range);
+                
+                this.showNotification('Add footnote definition at the end: [1]: Your footnote text', 'warning');
+            },
+
+            toggleMarkdownView() {
+                const editorView = document.getElementById('editorView');
+                const markdownView = document.getElementById('markdownView');
+                const toolbar = document.getElementById('toolbar');
+                const markdownBtn = document.getElementById('markdownBtn');
+
+                if (this.isMarkdownView) {
+                    const markdown = this.markdownEl.value;
+                    const html = marked.parse(markdown);
+                    this.editorEl.innerHTML = html;
+                    
+                    editorView.classList.remove('hidden');
+                    markdownView.classList.remove('active');
+                    toolbar.style.display = 'flex';
+                    markdownBtn.textContent = 'View Markdown';
+                    this.isMarkdownView = false;
+                } else {
+                    const html = this.editorEl.innerHTML;
+                    const markdown = this.turndownService.turndown(html);
+                    this.markdownEl.value = markdown;
+                    
+                    editorView.classList.add('hidden');
+                    markdownView.classList.add('active');
+                    toolbar.style.display = 'none';
+                    markdownBtn.textContent = 'Back to Editor';
+                    this.isMarkdownView = true;
+                }
+                
+                this.updateStats();
+            },
+
+            updateStats() {
+                let text;
+                if (this.isMarkdownView) {
+                    text = this.markdownEl.value;
+                } else {
+                    text = this.editorEl.innerText;
+                }
+
+                const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+                const chars = text.length;
+                const lines = text.split('\n').length;
+
+                document.getElementById('wordCount').textContent = 'Words: ' + words;
+                document.getElementById('charCount').textContent = 'Characters: ' + chars;
+                document.getElementById('lineCount').textContent = 'Lines: ' + lines;
+            },
+
+            newDocument() {
+                const hasContent = this.editorEl.innerText.trim() || this.markdownEl.value.trim();
+                
+                if (hasContent) {
+                    this.showModal(
+                        'New Document',
+                        'Are you sure? Any unsaved changes will be lost.',
+                        [
+                            { text: 'Cancel', class: 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50', action: () => this.closeModal() },
+                            { text: 'Create New', class: 'bg-red-600 text-white hover:bg-red-700', action: () => {
+                                this.editorEl.innerHTML = '<p><br></p>';
+                                this.markdownEl.value = '';
+                                this.closeModal();
+                                this.updateStats();
+                                this.showNotification('New document created', 'success');
+                            }}
+                        ]
+                    );
+                } else {
+                    this.showNotification('Document is already empty', 'warning');
+                }
+            },
+
+            exportMarkdown() {
+                let markdown;
+                
+                if (this.isMarkdownView) {
+                    markdown = this.markdownEl.value;
+                } else {
+                    markdown = this.turndownService.turndown(this.editorEl.innerHTML);
+                }
+
+                if (!markdown.trim()) {
+                    this.showNotification('Nothing to export', 'warning');
+                    return;
+                }
+
+                const blob = new Blob([markdown], { type: 'text/markdown' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'document-' + Date.now() + '.md';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                this.showNotification('Markdown exported successfully', 'success');
+            },
+
+            showImportModal() {
+                this.showModal(
+                    'Import Markdown',
+                    '<input type="file" id="fileInput" accept=".md,.markdown,.txt" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">',
+                    [
+                        { text: 'Cancel', class: 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50', action: () => this.closeModal() },
+                        { text: 'Import', class: 'bg-blue-600 text-white hover:bg-blue-700', action: () => this.importFile() }
+                    ]
+                );
+            },
+
+            importFile() {
+                const fileInput = document.getElementById('fileInput');
+                const file = fileInput ? fileInput.files[0] : null;
+                
+                if (!file) {
+                    this.showNotification('Please select a file', 'warning');
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const markdown = e.target.result;
+                    const html = marked.parse(markdown);
+                    this.editorEl.innerHTML = html;
+                    this.markdownEl.value = markdown;
+                    this.updateStats();
+                    this.closeModal();
+                    this.showNotification('File imported successfully', 'success');
+                };
+                reader.onerror = () => {
+                    this.showNotification('Failed to read file', 'error');
+                };
+                reader.readAsText(file);
+            },
+
+            showCheatsheet() {
+                const cheatsheet = '<div class="text-sm space-y-3 max-h-96 overflow-y-auto"><div class="font-semibold text-base mb-2">Basic Syntax</div><div><strong>Bold:</strong> **text** or select and click B</div><div><strong>Italic:</strong> *text* or select and click I</div><div><strong>Strikethrough:</strong> ~~text~~ or use toolbar</div><div><strong>Heading:</strong> # H1, ## H2, ### H3, etc.</div><div><strong>Link:</strong> [text](url) or use link button</div><div><strong>Image:</strong> ![alt](url) or use image button</div><div><strong>Inline Code:</strong> code in backticks</div><div><strong>Code Block:</strong> Use code button or triple backticks</div><div><strong>Lists:</strong> Use toolbar buttons or - / 1. in markdown</div><div><strong>Blockquote:</strong> > text or use quote button</div><div><strong>Horizontal Rule:</strong> --- or use button</div><div class="font-semibold text-base mt-4 mb-2">Extended Syntax</div><div><strong>Table:</strong> Use table button</div><div><strong>Task List:</strong> - [ ] task or - [x] done</div><div><strong>Highlight:</strong> ==text== or use highlight button</div><div><strong>Subscript:</strong> H~2~O or use subscript button</div><div><strong>Superscript:</strong> X^2^ or use superscript button</div><div><strong>Footnote:</strong> text[^1] then [^1]: note</div><div><strong>Definition:</strong> Use DL button</div><div class="font-semibold text-base mt-4 mb-2">Keyboard Shortcuts</div><div><strong>Bold:</strong> Ctrl/Cmd + B</div><div><strong>Italic:</strong> Ctrl/Cmd + I</div><div><strong>Underline:</strong> Ctrl/Cmd + U</div><div><strong>Save:</strong> Ctrl/Cmd + S</div></div>';
+                
+                this.showModal('Markdown Guide', cheatsheet, [
+                    { text: 'Close', class: 'bg-blue-600 text-white hover:bg-blue-700', action: () => this.closeModal() }
+                ]);
+            },
+
+            saveToStorage() {
+                try {
+                    const html = this.editorEl.innerHTML;
+                    const markdown = this.turndownService.turndown(html);
+                    localStorage.setItem('wysiwyg-editor-content', markdown);
+                    localStorage.setItem('wysiwyg-editor-timestamp', Date.now());
+                } catch (e) {
+                    console.error('Failed to save:', e);
+                }
+            },
+
+            loadFromStorage() {
+                try {
+                    const markdown = localStorage.getItem('wysiwyg-editor-content');
+                    if (markdown) {
+                        const html = marked.parse(markdown);
+                        this.editorEl.innerHTML = html;
+                        this.markdownEl.value = markdown;
+                        this.updateStats();
+                    } else {
+                        this.editorEl.innerHTML = '<p><br></p>';
+                    }
+                } catch (e) {
+                    console.error('Failed to load:', e);
+                    this.editorEl.innerHTML = '<p><br></p>';
+                }
+            },
+
+            startAutoSave() {
+                this.autoSaveInterval = setInterval(() => {
+                    if (this.editorEl.innerText.trim() || this.markdownEl.value.trim()) {
+                        this.saveToStorage();
+                    }
+                }, 30000);
+            },
+
+            showModal(title, body, buttons) {
+                document.getElementById('modalHeader').textContent = title;
+                document.getElementById('modalBody').innerHTML = body;
+                
+                const footer = document.getElementById('modalFooter');
+                footer.innerHTML = '';
+                buttons.forEach(btn => {
+                    const button = document.createElement('button');
+                    button.textContent = btn.text;
+                    button.className = 'px-4 py-2 rounded-md text-sm font-medium ' + btn.class;
+                    button.onclick = btn.action;
+                    footer.appendChild(button);
+                });
+
+                document.getElementById('modalOverlay').classList.add('active');
+            },
+
+            closeModal(event) {
+                if (!event || event.target.id === 'modalOverlay') {
+                    document.getElementById('modalOverlay').classList.remove('active');
+                }
+            },
+
+            showNotification(message, type) {
+                type = type || 'success';
+                const notification = document.createElement('div');
+                notification.className = 'notification ' + type;
+                notification.innerHTML = '<div class="font-medium">' + message + '</div>';
+                document.body.appendChild(notification);
+
+                setTimeout(function() {
+                    notification.classList.add('hiding');
+                    setTimeout(function() {
+                        notification.remove();
+                    }, 300);
+                }, 3000);
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', function() {
+            editor.init();
+        });
+    </script>
+</body>
+</html>
